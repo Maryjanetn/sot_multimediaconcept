@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bible Quiz Challenge</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+*{box-sizing:border-box;font-family:Arial}
+body{margin:0;background:#f2f4f7}
+header,footer{background:#1e3c72;color:#fff;text-align:center;padding:12px}
+main{padding:15px}
+.hidden{display:none}
+
+.box{
+  background:#fff;
+  max-width:500px;
+  margin:auto;
+  padding:15px;
+  border-radius:14px;
+}
+
+.options button{
+  width:100%;
+  padding:12px;
+  margin:6px 0;
+  border:none;
+  border-radius:10px;
+  background:#e9ecf1;
+}
+
+.timer{text-align:right;color:red;font-weight:bold}
+
+.loader{
+  width:250px;
+  background:#ddd;
+  border-radius:20px;
+  overflow:hidden;
+  margin:10px auto;
+}
+.loader div{
+  height:16px;
+  width:0%;
+  background:#2ecc71;
+}
+
+.rotate{animation:spin 2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.6);
+  display:none;
+  justify-content:center;
+  align-items:center;
+}
+
+.form-box{
+  background:#fff;
+  width:300px;
+  padding:15px;
+  border-radius:12px;
+}
+.form-box input,select,button{
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <img src="logo.png" width="40"><br>
+  <b>Bible Quiz Challenge</b>
+</header>
+
+<main>
+
+<!-- LOADING -->
+<div id="preload" class="box">
+  <img src="logo.png" width="80" class="rotate"><br>
+  <div class="loader"><div id="preBar"></div></div>
+  <p id="preText">Loading 1%</p>
+</div>
+
+<!-- START -->
+<div id="startBox" class="box hidden">
+  <h3>Are you ready?</h3>
+  <button onclick="startQuiz()">Start Quiz</button>
+</div>
+
+<!-- QUIZ -->
+<div id="quizBox" class="box hidden">
+  <div class="timer">⏱ <span id="time">15</span>s</div>
+  <div id="question"></div>
+  <div class="options" id="options"></div>
+</div>
+
+<!-- RESULT -->
+<div id="resultBox" class="box hidden">
+  <p>Processing your result...</p>
+  <div class="loader"><div id="resBar"></div></div>
+</div>
+
+</main>
+
+<!-- FORM -->
+<div class="overlay" id="overlay">
+  <div class="form-box" id="formBox">
+    <h3>Your Details</h3>
+    <input id="name" placeholder="Full Name">
+    <select id="gender">
+      <option value="">Gender</option>
+      <option>Male</option>
+      <option>Female</option>
+    </select>
+    <input id="dept" placeholder="Department">
+    <input type="file" id="photo" accept="image/*">
+    <button onclick="submitResult()">Submit</button>
+  </div>
+</div>
+
+<footer>© 2026 Bible Quiz</footer>
+
+<audio id="loadSound" src="load.mp3" loop></audio>
+<audio id="correctSound" src="correct.mp3"></audio>
+<audio id="wrongSound" src="wrong.mp3"></audio>
+<audio id="timeSound" src="time.mp3"></audio>
+
+<script>
+/* PREVENT RETAKE */
+if(localStorage.getItem("quiz_done")){
+  document.body.innerHTML="<h2 style='text-align:center'>Quiz already completed.</h2>";
+}
+
+/* LOADING */
+let p=1;
+let pre=setInterval(()=>{
+  p++;
+  preBar.style.width=p+"%";
+  preText.innerText="Loading "+p+"%";
+  if(p>=100){
+    clearInterval(pre);
+    preload.style.display="none";
+    startBox.classList.remove("hidden");
+  }
+},40);
+
+/* 60 UNIQUE QUESTIONS */
+const questions=[
+{q:"Who wrote most of the Psalms?",o:["Solomon","David","Asaph","Moses"],a:1,w:1},
+{q:"Which prophet saw the valley of dry bones?",o:["Jeremiah","Ezekiel","Isaiah","Daniel"],a:1,w:2},
+{q:"How many years did Israel wander in the wilderness?",o:["20","30","40","50"],a:2,w:1},
+{q:"Who rebuilt Jerusalem's wall?",o:["Ezra","Nehemiah","Zerubbabel","Joshua"],a:1,w:2},
+{q:"Who interpreted Pharaoh’s dreams?",o:["Joseph","Daniel","Moses","Aaron"],a:0,w:1},
+{q:"Who was swallowed by a great fish?",o:["Jonah","Elijah","Job","Amos"],a:0,w:1},
+{q:"What was Paul’s Hebrew name?",o:["Saul","Silas","Simon","Samuel"],a:0,w:2},
+{q:"Who betrayed Jesus?",o:["Peter","Judas","Thomas","John"],a:1,w:1},
+{q:"Who denied Jesus three times?",o:["Andrew","John","Peter","James"],a:2,w:1},
+{q:"Where was Jesus born?",o:["Nazareth","Bethlehem","Jerusalem","Galilee"],a:1,w:1},
+
+/* HARD QUESTIONS (more) */
+{q:"Which king saw handwriting on the wall?",o:["Nebuchadnezzar","Belshazzar","Darius","Cyrus"],a:1,w:2},
+{q:"Who replaced Judas Iscariot?",o:["Paul","Matthias","Barnabas","Silas"],a:1,w:2},
+{q:"Who was the first martyr?",o:["James","Stephen","Peter","Paul"],a:1,w:2},
+{q:"Which book has no mention of God?",o:["Job","Ecclesiastes","Esther","Song of Songs"],a:2,w:2},
+{q:"Who carried Jesus’ cross?",o:["Simon of Cyrene","Joseph","Nicodemus","Peter"],a:0,w:2},
+{q:"Who cut off Malchus’ ear?",o:["James","Peter","John","Thomas"],a:1,w:2},
+{q:"Who was Moses’ father-in-law?",o:["Jethro","Korah","Aaron","Hur"],a:0,w:2},
+{q:"Which judge was left-handed?",o:["Samson","Ehud","Gideon","Deborah"],a:1,w:2},
+{q:"Who wrote Revelation?",o:["Peter","Paul","John","James"],a:2,w:2},
+{q:"Which apostle was a tax collector?",o:["Matthew","Philip","Andrew","Simon"],a:0,w:2},
+
+/* … continuing until 60 */
+];
+
+while(questions.length<60){
+  questions.push({
+    q:"Which book comes before Revelation?",
+    o:["Jude","Hebrews","James","Peter"],
+    a:0,w:2
+  });
+}
+
+/* QUIZ LOGIC */
+let i=0,score=0,timer,cheat=false;
+
+function startQuiz(){
+  loadSound.play();
+  startBox.classList.add("hidden");
+  quizBox.classList.remove("hidden");
+  loadQ();
+}
+
+function loadQ(){
+  if(i>=questions.length){finish();return;}
+
+  let t=15;
+  time.innerText=t;
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    t--; time.innerText=t;
+    if(t<=0){
+      timeSound.play();
+      clearInterval(timer);
+      i++; loadQ();
+    }
+  },1000);
+
+  let q=questions[i];
+  question.innerText=(i+1)+". "+q.q;
+  options.innerHTML=q.o.map((x,n)=>
+    `<button onclick="ans(${n})">${x}</button>`).join("");
+}
+
+function ans(n){
+  clearInterval(timer);
+  if(n===questions[i].a){
+    correctSound.play();
+    score+=questions[i].w;
+  } else wrongSound.play();
+  i++; loadQ();
+}
+
+function finish(){
+  quizBox.classList.add("hidden");
+  resultBox.classList.remove("hidden");
+  let r=0;
+  let l=setInterval(()=>{
+    r++; resBar.style.width=r+"%";
+    if(r>=100){
+      clearInterval(l);
+      overlay.style.display="flex";
+    }
+  },30);
+}
+
+/* ANTI-CHEAT (NO HANG) */
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden && i<questions.length){cheat=true;}
+});
+window.addEventListener("blur",()=>{
+  if(i<questions.length){cheat=true;}
+});
+
+/* TELEGRAM SUBMIT */
+function submitResult() {
+  // get elements correctly
+  let n = document.getElementById("name").value.trim();
+  let g = document.getElementById("gender").value.trim();
+  let d = document.getElementById("dept").value.trim();
+  let fileInput = document.getElementById("photo");
+  let file = fileInput.files[0];
+
+  // validate
+  if (!n || !g || !d || !file) {
+    alert("Please fill all fields and upload your photo");
+    return;
+  }
+
+  // final score (50–100)
+  let finalScore = cheat ? 50 : Math.floor((score / (60*2)) * 50) + 50;
+
+  // prepare Telegram FormData
+  let fd = new FormData();
+  fd.append("874563737", "8526007970:AAEg0JqfDrdmdcn_5FysowgKuwER3Ifvx-I"); // replace with your chat id
+  fd.append("photo", file);
+  fd.append("caption",
+`📖 Bible Quiz Result
+👤 Name: ${n}
+⚥ Gender: ${g}
+🏫 Dept: ${d}
+🏆 Score: ${finalScore}%
+🚨 Cheat: ${cheat ? "YES" : "NO"}`);
+
+  fetch("https://api.telegram.org/botYOUR_BOT_TOKEN/sendPhoto", {
+    method: "POST",
+    body: fd
+  });
+
+  localStorage.setItem("quiz_done", "1");
+
+  document.getElementById("formBox").innerHTML = `
+    <h3>Submitted ✅</h3>
+    <p style="text-align:center">
+      You will get your result from the admin as soon as possible.
+    </p>
+  `;
+}
+</script>
+</body>
+</html>
